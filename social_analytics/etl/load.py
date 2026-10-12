@@ -78,6 +78,11 @@ def load(conn: oracledb.Connection, data_dir: Path = DATA_DIR) -> dict[str, int]
         cursor.execute("SELECT COUNT(*) FROM hashtag_daily_stats")
         (counts["hashtag_daily_stats"],) = cursor.fetchone()
     conn.commit()
+
+    # Refresh optimizer statistics so execution plans reflect the new data.
+    # DBMS_STATS commits implicitly, so it runs after the load transaction.
+    with conn.cursor() as cursor:
+        cursor.callproc("dbms_stats.gather_schema_stats", [conn.username.upper()])
     return counts
 
 
