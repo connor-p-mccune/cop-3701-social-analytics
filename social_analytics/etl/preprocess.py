@@ -144,10 +144,11 @@ def parse_timestamp(value: str) -> datetime:
 def clean_text(value: str) -> str:
     """Decode HTML entities and normalize whitespace.
 
-    U+FFFD marks characters the source had already lost; nearly all were
-    curly apostrophes ("I�m"), so they are restored as plain apostrophes.
+    The replacement character U+FFFD marks characters the source had already
+    lost. Nearly all were curly apostrophes ("I'm"), so they are restored as
+    plain apostrophes.
     """
-    text = html.unescape(value).replace("�", "'")
+    text = html.unescape(value).replace("\ufffd", "'")
     return WHITESPACE_PATTERN.sub(" ", text).strip()
 
 
