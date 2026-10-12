@@ -1,2 +1,7 @@
 oracledb==26.0.1
 python-dotenv==1.2.4
+
+# Dashboard
+altair==6.3.0
+pandas==3.0.6
+streamlit==1.65.0

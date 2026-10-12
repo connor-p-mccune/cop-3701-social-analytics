@@ -1,0 +1,15 @@
+# Streamlit settings for `streamlit run dashboard/app.py` (run from the repo root).
+
+[client]
+# Hide developer-only toolbar items such as "Deploy".
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+# Accent color matches the chart series blue in each mode.
+[theme.light]
+primaryColor = "#2a78d6"
+
+[theme.dark]
+primaryColor = "#3987e5"
