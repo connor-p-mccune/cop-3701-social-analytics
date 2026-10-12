@@ -98,3 +98,25 @@ CREATE INDEX ix_tweet_reply_to ON TWEET (reply_to_tweet_id);
 
 -- Hashtag -> tweets lookups; tweet_id is included so the join is index-only.
 CREATE INDEX ix_tweet_hashtag_tag ON TWEET_HASHTAG (hashtag_id, tweet_id);
+
+-- ----------------------------------------------------------------------------
+-- Data dictionary (visible in USER_TAB_COMMENTS / USER_COL_COMMENTS)
+-- ----------------------------------------------------------------------------
+COMMENT ON TABLE APP_USER IS 'Tweet authors. Named APP_USER because USER is reserved in Oracle.';
+COMMENT ON COLUMN APP_USER.username IS 'Twitter handle; unique ignoring case.';
+COMMENT ON COLUMN APP_USER.email IS 'Synthetic <handle>@example.com address; the source has no emails.';
+COMMENT ON COLUMN APP_USER.created_at IS 'UTC time of the earliest tweet observed for this user (the source has no account creation dates).';
+
+COMMENT ON TABLE TWEET IS 'One row per tweet from the Sentiment140 sample.';
+COMMENT ON COLUMN TWEET.tweet_text IS 'Original text with HTML entities decoded; hashtags are kept in place.';
+COMMENT ON COLUMN TWEET.created_at IS 'Posting time in UTC.';
+COMMENT ON COLUMN TWEET.reply_to_tweet_id IS 'Tweet being replied to, when known.';
+
+COMMENT ON TABLE HASHTAG IS 'Distinct hashtags, normalized to lowercase without the leading #.';
+COMMENT ON COLUMN HASHTAG.first_seen_at IS 'UTC time of the first tweet using this hashtag.';
+
+COMMENT ON TABLE SENTIMENT_SCORE IS 'Sentiment per tweet (one-to-one with TWEET).';
+COMMENT ON COLUMN SENTIMENT_SCORE.score IS 'From -1 (negative) to 1 (positive). Sentiment140 labels map to -1 or 1.';
+COMMENT ON COLUMN SENTIMENT_SCORE.model_version IS 'Model or labeling source that produced the score.';
+
+COMMENT ON TABLE TWEET_HASHTAG IS 'Associative entity resolving the many-to-many TWEET/HASHTAG relationship.';
