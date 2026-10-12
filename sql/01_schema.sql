@@ -76,3 +76,25 @@ CREATE TABLE TWEET_HASHTAG (
     CONSTRAINT fk_th_hashtag
         FOREIGN KEY (hashtag_id) REFERENCES HASHTAG (hashtag_id)
 );
+
+-- ----------------------------------------------------------------------------
+-- Indexes
+--
+-- Oracle indexes primary keys and unique constraints automatically, but not
+-- foreign keys. An unindexed foreign key means full scans when joining from
+-- the parent side, and a table lock on the child whenever a parent row is
+-- deleted. Every foreign key below therefore leads an index;
+-- TWEET_HASHTAG.tweet_id is already covered by that table's primary key.
+-- ----------------------------------------------------------------------------
+
+-- Tweets by user: one range scan per user; created_at supports per-user date filters.
+CREATE INDEX ix_tweet_user_created ON TWEET (user_id, created_at);
+
+-- Date-range scans (sentiment over time, daily rollups).
+CREATE INDEX ix_tweet_created_at ON TWEET (created_at);
+
+-- Supports ON DELETE SET NULL without scanning TWEET.
+CREATE INDEX ix_tweet_reply_to ON TWEET (reply_to_tweet_id);
+
+-- Hashtag -> tweets lookups; tweet_id is included so the join is index-only.
+CREATE INDEX ix_tweet_hashtag_tag ON TWEET_HASHTAG (hashtag_id, tweet_id);
