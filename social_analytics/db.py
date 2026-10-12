@@ -19,12 +19,31 @@ if TYPE_CHECKING:
 Params = dict[str, Any] | None
 
 
+def _init_client(settings: Settings) -> None:
+    if settings.client_lib_dir and oracledb.is_thin_mode():
+        oracledb.init_oracle_client(lib_dir=settings.client_lib_dir)
+
+
 def connect(settings: Settings | None = None) -> oracledb.Connection:
     """Open a connection; use it as a context manager to close it reliably."""
     settings = settings or Settings.from_env()
-    if settings.client_lib_dir and oracledb.is_thin_mode():
-        oracledb.init_oracle_client(lib_dir=settings.client_lib_dir)
+    _init_client(settings)
     return oracledb.connect(user=settings.user, password=settings.password, dsn=settings.dsn)
+
+
+def create_pool(settings: Settings | None = None, max_size: int = 4) -> oracledb.ConnectionPool:
+    """Create a small connection pool for long-running, multi-session apps."""
+    settings = settings or Settings.from_env()
+    _init_client(settings)
+    return oracledb.create_pool(
+        user=settings.user,
+        password=settings.password,
+        dsn=settings.dsn,
+        min=1,
+        max=max_size,
+        increment=1,
+        ping_interval=60,
+    )
 
 
 def fetch(conn: oracledb.Connection, sql: str, params: Params = None):
