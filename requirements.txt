@@ -1,2 +1,2 @@
-oracledb
-python-dotenv
+oracledb==26.0.1
+python-dotenv==1.2.4
