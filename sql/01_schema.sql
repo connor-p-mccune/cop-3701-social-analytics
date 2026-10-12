@@ -1,50 +1,19 @@
-BEGIN
-   EXECUTE IMMEDIATE 'DROP TABLE TWEET_HASHTAG CASCADE CONSTRAINTS';
-EXCEPTION
-   WHEN OTHERS THEN
-      IF SQLCODE != -942 THEN
-         RAISE;
-      END IF;
-END;
-/
+-- ============================================================================
+-- Tweet analytics schema (Oracle 12.1+)
+--
+-- Five tables in BCNF; see docs/database-design.md for the ER diagram and
+-- functional-dependency analysis. Safe to re-run: existing tables are
+-- dropped first.
+-- ============================================================================
 
 BEGIN
-   EXECUTE IMMEDIATE 'DROP TABLE SENTIMENT_SCORE CASCADE CONSTRAINTS';
-EXCEPTION
-   WHEN OTHERS THEN
-      IF SQLCODE != -942 THEN
-         RAISE;
-      END IF;
-END;
-/
-
-BEGIN
-   EXECUTE IMMEDIATE 'DROP TABLE TWEET CASCADE CONSTRAINTS';
-EXCEPTION
-   WHEN OTHERS THEN
-      IF SQLCODE != -942 THEN
-         RAISE;
-      END IF;
-END;
-/
-
-BEGIN
-   EXECUTE IMMEDIATE 'DROP TABLE HASHTAG CASCADE CONSTRAINTS';
-EXCEPTION
-   WHEN OTHERS THEN
-      IF SQLCODE != -942 THEN
-         RAISE;
-      END IF;
-END;
-/
-
-BEGIN
-   EXECUTE IMMEDIATE 'DROP TABLE APP_USER CASCADE CONSTRAINTS';
-EXCEPTION
-   WHEN OTHERS THEN
-      IF SQLCODE != -942 THEN
-         RAISE;
-      END IF;
+   FOR t IN (SELECT table_name
+               FROM user_tables
+              WHERE table_name IN ('TWEET_HASHTAG', 'SENTIMENT_SCORE', 'TWEET',
+                                   'HASHTAG', 'APP_USER'))
+   LOOP
+      EXECUTE IMMEDIATE 'DROP TABLE ' || t.table_name || ' CASCADE CONSTRAINTS PURGE';
+   END LOOP;
 END;
 /
 
