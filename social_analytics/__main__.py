@@ -6,6 +6,7 @@ COMMANDS = {
     "preprocess": ("social_analytics.etl.preprocess", "sample Sentiment140 into data/*.csv"),
     "init-db": ("social_analytics.sql_runner", "create the schema (drops existing tables)"),
     "load": ("social_analytics.etl.load", "load data/*.csv into the database"),
+    "cli": ("social_analytics.cli", "interactive query menu"),
 }
 
 
