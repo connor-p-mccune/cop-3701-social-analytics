@@ -218,3 +218,66 @@ SELECT (SELECT COUNT(*) FROM TWEET)         AS tweets,
        (SELECT TRUNC(MIN(created_at)) FROM TWEET) AS first_day,
        (SELECT TRUNC(MAX(created_at)) FROM TWEET) AS last_day
   FROM DUAL;
+
+-- name: period_summary
+-- Headline figures for a date range: tweets, distinct authors, hashtags in
+-- use, and the share of scored tweets that are positive.
+SELECT a.tweets,
+       a.users,
+       (SELECT COUNT(DISTINCT d.hashtag_id)
+          FROM HASHTAG_DAILY_STATS d
+         WHERE d.stat_date BETWEEN TO_DATE(:start_date, 'YYYY-MM-DD')
+                               AND TO_DATE(:end_date, 'YYYY-MM-DD')) AS hashtags,
+       a.pct_positive
+  FROM (SELECT COUNT(*)                  AS tweets,
+               COUNT(DISTINCT t.user_id) AS users,
+               ROUND(100 * AVG(CASE WHEN s.score > 0 THEN 1
+                                    WHEN s.score IS NOT NULL THEN 0 END), 1) AS pct_positive
+          FROM TWEET t
+          LEFT JOIN SENTIMENT_SCORE s
+            ON s.tweet_id = t.tweet_id
+         WHERE t.created_at >= TO_DATE(:start_date, 'YYYY-MM-DD')
+           AND t.created_at <  TO_DATE(:end_date, 'YYYY-MM-DD') + 1) a;
+
+-- name: daily_activity
+-- Daily volume and sentiment between two dates. The view computes the 7-day
+-- rolling value before this filter applies, so the first days of the range
+-- still average in the days just before it.
+SELECT activity_date,
+       tweet_count,
+       positive_count,
+       negative_count,
+       net_sentiment,
+       net_sentiment_7d
+  FROM v_daily_activity
+ WHERE activity_date BETWEEN TO_DATE(:start_date, 'YYYY-MM-DD')
+                         AND TO_DATE(:end_date, 'YYYY-MM-DD')
+ ORDER BY activity_date;
+
+-- name: top_hashtags_in_range
+-- The :row_limit most-used hashtags between two dates, with net sentiment.
+SELECT h.tag_text,
+       SUM(d.tweet_count)                                          AS tweet_count,
+       ROUND(SUM(d.score_sum) / NULLIF(SUM(d.scored_count), 0), 4) AS net_sentiment
+  FROM HASHTAG_DAILY_STATS d
+  JOIN HASHTAG h
+    ON h.hashtag_id = d.hashtag_id
+ WHERE d.stat_date BETWEEN TO_DATE(:start_date, 'YYYY-MM-DD')
+                       AND TO_DATE(:end_date, 'YYYY-MM-DD')
+ GROUP BY h.tag_text
+ ORDER BY tweet_count DESC, h.tag_text
+ FETCH FIRST :row_limit ROWS ONLY;
+
+-- name: popular_hashtags
+-- Lifetime stats for hashtags used in at least :min_tweets tweets, most used
+-- first.
+SELECT tag_text,
+       tweet_count,
+       net_sentiment,
+       pct_positive,
+       active_days,
+       first_day,
+       last_day
+  FROM v_hashtag_sentiment
+ WHERE tweet_count >= :min_tweets
+ ORDER BY tweet_count DESC, tag_text;
