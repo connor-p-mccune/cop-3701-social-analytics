@@ -117,3 +117,55 @@ BEGIN
                   AND t.created_at <  s.stat_date + 1);
 END refresh_hashtag_stats;
 /
+
+-- ----------------------------------------------------------------------------
+-- Views
+-- ----------------------------------------------------------------------------
+
+-- Corpus-wide activity per UTC day, with a 7-day rolling sentiment.
+-- The rolling window uses RANGE rather than ROWS: the corpus has multi-day
+-- gaps, and "the previous 6 rows" is not "the previous 6 days". The rolling
+-- value is tweet-weighted (sum of scores / scored tweets across the window),
+-- not an average of daily averages.
+CREATE OR REPLACE VIEW v_daily_activity AS
+WITH daily AS (
+    SELECT TRUNC(t.created_at)                      AS activity_date,
+           COUNT(*)                                 AS tweet_count,
+           COUNT(s.score)                           AS scored_count,
+           COUNT(CASE WHEN s.score > 0 THEN 1 END)  AS positive_count,
+           COUNT(CASE WHEN s.score < 0 THEN 1 END)  AS negative_count,
+           NVL(SUM(s.score), 0)                     AS score_sum
+      FROM TWEET t
+      LEFT JOIN SENTIMENT_SCORE s
+        ON s.tweet_id = t.tweet_id
+     GROUP BY TRUNC(t.created_at)
+)
+SELECT activity_date,
+       tweet_count,
+       positive_count,
+       negative_count,
+       ROUND(score_sum / NULLIF(scored_count, 0), 4) AS net_sentiment,
+       ROUND(
+           SUM(score_sum) OVER (ORDER BY activity_date
+                                RANGE BETWEEN 6 PRECEDING AND CURRENT ROW)
+           / NULLIF(SUM(scored_count) OVER (ORDER BY activity_date
+                                            RANGE BETWEEN 6 PRECEDING AND CURRENT ROW), 0),
+           4) AS net_sentiment_7d
+  FROM daily;
+
+-- Lifetime usage and sentiment per hashtag, rolled up from the daily stats.
+CREATE OR REPLACE VIEW v_hashtag_sentiment AS
+SELECT h.hashtag_id,
+       h.tag_text,
+       SUM(d.tweet_count)                                                     AS tweet_count,
+       SUM(d.positive_count)                                                  AS positive_count,
+       SUM(d.negative_count)                                                  AS negative_count,
+       ROUND(SUM(d.score_sum) / NULLIF(SUM(d.scored_count), 0), 4)            AS net_sentiment,
+       ROUND(100 * SUM(d.positive_count) / NULLIF(SUM(d.scored_count), 0), 1) AS pct_positive,
+       COUNT(*)                                                               AS active_days,
+       MIN(d.stat_date)                                                       AS first_day,
+       MAX(d.stat_date)                                                       AS last_day
+  FROM HASHTAG h
+  JOIN HASHTAG_DAILY_STATS d
+    ON d.hashtag_id = h.hashtag_id
+ GROUP BY h.hashtag_id, h.tag_text;
