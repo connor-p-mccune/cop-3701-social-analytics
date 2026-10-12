@@ -281,3 +281,17 @@ SELECT tag_text,
   FROM v_hashtag_sentiment
  WHERE tweet_count >= :min_tweets
  ORDER BY tweet_count DESC, tag_text;
+
+-- name: hashtag_period_summary
+-- One hashtag's usage and sentiment between two dates (always one row; the
+-- measures are NULL when the hashtag was not used in the range).
+SELECT NVL(SUM(d.tweet_count), 0)                                              AS tweet_count,
+       ROUND(SUM(d.score_sum) / NULLIF(SUM(d.scored_count), 0), 4)            AS net_sentiment,
+       ROUND(100 * SUM(d.positive_count) / NULLIF(SUM(d.scored_count), 0), 1) AS pct_positive,
+       COUNT(*)                                                               AS active_days
+  FROM HASHTAG_DAILY_STATS d
+  JOIN HASHTAG h
+    ON h.hashtag_id = d.hashtag_id
+ WHERE h.tag_text = LOWER(LTRIM(TRIM(:hashtag), '#'))
+   AND d.stat_date BETWEEN TO_DATE(:start_date, 'YYYY-MM-DD')
+                       AND TO_DATE(:end_date, 'YYYY-MM-DD');
