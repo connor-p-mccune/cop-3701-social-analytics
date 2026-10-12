@@ -202,3 +202,19 @@ SELECT h.tag_text,
     ON h.hashtag_id = c.hashtag_id
  ORDER BY change DESC, c.uses DESC, h.tag_text
  FETCH FIRST :top_n ROWS ONLY;
+
+-- ----------------------------------------------------------------------------
+-- Summary queries used by the CLI header and dashboard
+-- ----------------------------------------------------------------------------
+
+-- name: dataset_overview
+-- Headline counts, share of positive tweets, and the date span of the data.
+SELECT (SELECT COUNT(*) FROM TWEET)         AS tweets,
+       (SELECT COUNT(*) FROM APP_USER)      AS users,
+       (SELECT COUNT(*) FROM HASHTAG)       AS hashtags,
+       (SELECT COUNT(*) FROM TWEET_HASHTAG) AS hashtag_links,
+       (SELECT ROUND(100 * AVG(CASE WHEN score > 0 THEN 1 ELSE 0 END), 1)
+          FROM SENTIMENT_SCORE)             AS pct_positive,
+       (SELECT TRUNC(MIN(created_at)) FROM TWEET) AS first_day,
+       (SELECT TRUNC(MAX(created_at)) FROM TWEET) AS last_day
+  FROM DUAL;
