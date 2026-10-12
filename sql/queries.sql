@@ -1,4 +1,18 @@
--- Feature 1: Views all the tweets by a selected user
+-- ============================================================================
+-- Query catalog
+--
+-- Every query that the CLI, dashboard, and tests run lives in this file, so
+-- the SQL shown in the docs is exactly the SQL that executes. Each entry is:
+--
+--   -- name: <identifier>
+--   -- <one or more lines describing the query>
+--   <a single SQL statement ending with a semicolon>
+--
+-- Bind variables use Oracle's :name syntax.
+-- ============================================================================
+
+-- name: tweets_by_user
+-- Feature 1: all tweets by a selected user, newest first.
 SELECT u.username,
        t.tweet_id,
        t.tweet_text,
@@ -9,7 +23,8 @@ JOIN TWEET t
 WHERE u.username = :username
 ORDER BY t.created_at DESC;
 
--- Feature 2: Views all the hashtags used in a selected tweet
+-- name: hashtags_for_tweet
+-- Feature 2: every hashtag used in a selected tweet.
 SELECT t.tweet_id,
        t.tweet_text,
        h.tag_text
@@ -21,7 +36,8 @@ JOIN HASHTAG h
 WHERE t.tweet_id = :tweet_id
 ORDER BY h.tag_text;
 
--- Feature 3: Finds all the tweets containing a selected hashtag
+-- name: tweets_with_hashtag
+-- Feature 3: all tweets that use a selected hashtag, newest first.
 SELECT h.tag_text,
        t.tweet_id,
        t.tweet_text,
@@ -34,7 +50,8 @@ JOIN TWEET t
 WHERE h.tag_text = :tag_text
 ORDER BY t.created_at DESC;
 
--- Feature 4: Views tweet sentiment scores in a date range
+-- name: sentiment_in_date_range
+-- Feature 4: tweets and their sentiment scores within a date range.
 SELECT t.tweet_id,
        t.tweet_text,
        s.score,
@@ -46,7 +63,8 @@ JOIN SENTIMENT_SCORE s
 WHERE t.created_at BETWEEN :start_date AND :end_date
 ORDER BY t.created_at DESC;
 
--- Feature 5: Shows the top hashtags by usage count
+-- name: top_hashtags
+-- Feature 5: hashtags ranked by how many tweets use them.
 SELECT h.tag_text,
        COUNT(*) AS usage_count
 FROM HASHTAG h
