@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from social_analytics import queries
@@ -70,3 +72,15 @@ def test_project_catalog_has_every_feature_query():
 def test_get_unknown_query_raises_key_error():
     with pytest.raises(KeyError, match="no query named"):
         queries.get("does_not_exist")
+
+
+def test_catalog_reloads_when_the_file_changes(tmp_path):
+    path = tmp_path / "queries.sql"
+    path.write_text("-- name: a\n-- A.\nSELECT 1 FROM dual;\n")
+    assert list(queries.catalog(path)) == ["a"]
+
+    path.write_text(
+        "-- name: a\n-- A.\nSELECT 1 FROM dual;\n-- name: b\n-- B.\nSELECT 2 FROM dual;\n"
+    )
+    os.utime(path, ns=(0, path.stat().st_mtime_ns + 1_000_000))
+    assert list(queries.catalog(path)) == ["a", "b"]

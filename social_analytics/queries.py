@@ -59,8 +59,17 @@ def parse_queries(text: str) -> dict[str, Query]:
 
 
 @cache
-def catalog(path: Path = QUERIES_FILE) -> dict[str, Query]:
+def _parse_file(path: Path, mtime_ns: int) -> dict[str, Query]:
     return parse_queries(path.read_text(encoding="utf-8"))
+
+
+def catalog(path: Path = QUERIES_FILE) -> dict[str, Query]:
+    """The parsed catalog, re-read whenever the file changes.
+
+    Keying the cache on modification time lets a long-running process (such
+    as the dashboard) pick up edits to queries.sql without a restart.
+    """
+    return _parse_file(path, path.stat().st_mtime_ns)
 
 
 def get(name: str) -> Query:
