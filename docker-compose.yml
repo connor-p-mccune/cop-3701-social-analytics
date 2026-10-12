@@ -1,0 +1,27 @@
+# Local Oracle AI Database 26ai Free (release 23.26) for development and demos.
+#
+#   docker compose up -d        # first start takes ~1 minute
+#   docker compose ps           # wait for "healthy"
+#
+# Credentials come from .env (copy .env.example). The container creates
+# DB_USER in the FREEPDB1 pluggable database on first start.
+services:
+  oracle:
+    image: gvenzl/oracle-free:23-slim-faststart
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_ADMIN_PASSWORD:?set ORACLE_ADMIN_PASSWORD in .env}
+      APP_USER: ${DB_USER:?set DB_USER in .env}
+      APP_USER_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  oracle-data:
