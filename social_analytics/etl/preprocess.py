@@ -1,14 +1,19 @@
 """Build the sample dataset in data/ from the Sentiment140 corpus.
 
 Sentiment140 (Go, Bhayani & Huang, 2009) holds 1.6M English tweets from
-April-June 2009, each labeled negative (0) or positive (4). Two properties
-of the source shape this script:
+April-June 2009, each labeled negative (0) or positive (4). Three
+properties of the source shape this script:
 
 * The CSV is sorted by label: the first 800,000 rows are all negative. A
   "first N rows" sample is therefore 100% negative and spans only a few
   days, so this script samples across the entire file instead.
 * 1,685 tweet ids appear twice with opposite labels. Those tweets have no
   trustworthy label and are dropped.
+* The two labels were collected over different periods: positive tweets
+  stop at 15:40 UTC on June 16, while negative tweets continue to June 25.
+  After that point, sentiment would look 100% negative purely because of
+  how the corpus was collected, so the sample is limited to the period in
+  which both labels were being collected.
 
 Sampling is deterministic: every keep/drop decision is a hash of --seed and
 the tweet id (or username), so reruns produce byte-identical CSVs. The
@@ -17,7 +22,7 @@ sample combines three slices:
 1. Tweets with hashtags, kept at --hashtag-rate, so per-hashtag trends have
    real volume (only ~2% of the corpus uses hashtags).
 2. All other tweets, kept at --plain-rate. This preserves the corpus's
-   day-by-day volume and its 50/50 label balance.
+   day-by-day volume and label mix.
 3. Complete timelines for --timeline-users users with a moderate number of
    tweets, so per-user lookups return real histories.
 
@@ -66,6 +71,15 @@ class Tweet:
     text: str
     score: float
     hashtags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CorpusScan:
+    """Facts about the whole corpus gathered by the first pass."""
+
+    tweet_counts: Counter[str]  # tweets per lowercase username
+    duplicate_ids: set[int]
+    window: tuple[datetime, datetime]  # period during which every label was collected
 
 
 @dataclass
@@ -193,21 +207,33 @@ def select_timeline_users(
     return set(eligible[:count])
 
 
-def scan_corpus(rows: Iterable[list[str]]) -> tuple[Counter[str], set[int]]:
-    """First pass: per-user tweet counts and ids that appear more than once."""
+def scan_corpus(rows: Iterable[list[str]]) -> CorpusScan:
+    """First pass: per-user counts, duplicate ids, and the label-coverage window."""
     tweet_counts: Counter[str] = Counter()
     seen: set[int] = set()
     duplicates: set[int] = set()
+    label_spans: dict[str, tuple[datetime, datetime]] = {}
     for row in rows:
-        # Only ids and usernames are needed here, so skip the full parse.
-        if len(row) != 6 or not row[1].isdigit():
+        # Text is not needed here, so skip the comparatively expensive full parse.
+        if len(row) != 6 or row[0] not in LABEL_SCORES or not row[1].isdigit():
             continue
         tweet_id = int(row[1])
         tweet_counts[row[4].strip().lower()] += 1
         if tweet_id in seen:
             duplicates.add(tweet_id)
         seen.add(tweet_id)
-    return tweet_counts, duplicates
+
+        created_at = parse_timestamp(row[2])
+        first, last = label_spans.get(row[0], (created_at, created_at))
+        label_spans[row[0]] = (min(first, created_at), max(last, created_at))
+
+    if not label_spans:
+        raise ValueError("no usable rows in input")
+    window = (
+        max(first for first, _ in label_spans.values()),
+        min(last for _, last in label_spans.values()),
+    )
+    return CorpusScan(tweet_counts, duplicates, window)
 
 
 def sample_tweets(
@@ -218,18 +244,18 @@ def sample_tweets(
     plain_rate: float,
     timeline_users: set[str],
     excluded_ids: set[int],
+    window: tuple[datetime, datetime],
 ) -> list[Tweet]:
-    """Second pass: keep tweets selected by any of the three sampling slices."""
+    """Second pass: keep in-window tweets selected by any of the sampling slices."""
     sample: dict[int, Tweet] = {}
     for row in rows:
         tweet = parse_row(row)
         if tweet is None or tweet.tweet_id in excluded_ids:
             continue
+        if not window[0] <= tweet.created_at <= window[1]:
+            continue
         rate = hashtag_rate if tweet.hashtags else plain_rate
-        if (
-            tweet.username.lower() in timeline_users
-            or stable_fraction(seed, tweet.tweet_id) < rate
-        ):
+        if tweet.username.lower() in timeline_users or stable_fraction(seed, tweet.tweet_id) < rate:
             sample[tweet.tweet_id] = tweet
     return sorted(sample.values(), key=lambda t: (t.created_at, t.tweet_id))
 
@@ -343,11 +369,13 @@ def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
 
     print(f"Scanning {args.input} ...")
-    tweet_counts, duplicates = scan_corpus(iter_source_rows(args.input))
+    scan = scan_corpus(iter_source_rows(args.input))
     timeline_users = select_timeline_users(
-        tweet_counts, args.timeline_users, args.timeline_min, args.timeline_max, args.seed
+        scan.tweet_counts, args.timeline_users, args.timeline_min, args.timeline_max, args.seed
     )
-    print(f"Dropping {len(duplicates):,} tweet ids that appear with conflicting labels")
+    print(f"Dropping {len(scan.duplicate_ids):,} tweet ids that appear with conflicting labels")
+    start, end = (fmt(ts) for ts in scan.window)
+    print(f"Keeping tweets from the period every label covers: {start} .. {end} UTC")
 
     print("Sampling ...")
     tweets = sample_tweets(
@@ -356,7 +384,8 @@ def main(argv: list[str] | None = None) -> None:
         hashtag_rate=args.hashtag_rate,
         plain_rate=args.plain_rate,
         timeline_users=timeline_users,
-        excluded_ids=duplicates,
+        excluded_ids=scan.duplicate_ids,
+        window=scan.window,
     )
     tables = build_tables(tweets)
     write_csvs(tables, args.output)
