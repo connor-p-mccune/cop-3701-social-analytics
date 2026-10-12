@@ -1,5 +1,17 @@
-archive.zip
+# Raw Sentiment140 downloads (81 MB zip / 239 MB CSV) — regenerate data/ instead
+raw/
+*.zip
 training.1600000.processed.noemoticon.csv
+
+# Local configuration and secrets
 .env
+
+# Python
 .venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Oracle Instant Client (only needed for optional thick mode)
 instantclient*/
