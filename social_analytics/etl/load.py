@@ -1,9 +1,9 @@
 """Load the CSV files in data/ into Oracle.
 
 The load runs as a single transaction. Existing rows are deleted (children
-first), new rows are batch-inserted (parents first), and row counts are
-checked against the CSVs before anything is committed. A failed load leaves
-the previous data untouched.
+first), new rows are batch-inserted (parents first), row counts are checked
+against the CSVs, and the HASHTAG_DAILY_STATS rollup is rebuilt before
+anything is committed. A failed load leaves the previous data untouched.
 
 Usage:
     python -m social_analytics load [--data-dir data]
@@ -73,6 +73,10 @@ def load(conn: oracledb.Connection, data_dir: Path = DATA_DIR) -> dict[str, int]
             expected = len(tables[name])
             if counts[name] != expected:
                 raise RuntimeError(f"{name}: inserted {counts[name]} rows, CSV has {expected}")
+
+        cursor.callproc("refresh_hashtag_stats")
+        cursor.execute("SELECT COUNT(*) FROM hashtag_daily_stats")
+        (counts["hashtag_daily_stats"],) = cursor.fetchone()
     conn.commit()
     return counts
 
@@ -89,5 +93,5 @@ def main(argv: list[str] | None = None) -> None:
     with connect() as conn:
         counts = load(conn, args.data_dir)
     for name, count in counts.items():
-        print(f"{name:>16}: {count:>7,} rows")
+        print(f"{name:>19}: {count:>7,} rows")
     print(f"Loaded in {time.perf_counter() - started:.1f}s")
