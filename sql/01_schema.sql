@@ -18,50 +18,61 @@ END;
 /
 
 CREATE TABLE APP_USER (
-    user_id NUMBER PRIMARY KEY,
-    username VARCHAR2(50) NOT NULL,
-    email VARCHAR2(100) NOT NULL UNIQUE,
-    display_name VARCHAR2(100),
-    location VARCHAR2(100),
-    created_at TIMESTAMP NOT NULL
+    user_id       NUMBER(10)          CONSTRAINT pk_app_user PRIMARY KEY,
+    username      VARCHAR2(50 CHAR)   NOT NULL,
+    email         VARCHAR2(100 CHAR)  NOT NULL CONSTRAINT uq_app_user_email UNIQUE,
+    display_name  VARCHAR2(100 CHAR),
+    location      VARCHAR2(100 CHAR),
+    created_at    TIMESTAMP           NOT NULL
 );
 
+-- Twitter handles are unique regardless of case ("Bob" and "bob" are the
+-- same account). A function-based unique index enforces that rule and also
+-- serves case-insensitive lookups such as WHERE LOWER(username) = :name.
+CREATE UNIQUE INDEX uq_app_user_username_ci ON APP_USER (LOWER(username));
+
 CREATE TABLE TWEET (
-    tweet_id NUMBER PRIMARY KEY,
-    user_id NUMBER NOT NULL,
-    tweet_text VARCHAR2(280) NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    lang VARCHAR2(10),
-    reply_to_tweet_id NUMBER,
+    tweet_id           NUMBER(19)          CONSTRAINT pk_tweet PRIMARY KEY,
+    user_id            NUMBER(10)          NOT NULL,
+    tweet_text         VARCHAR2(280 CHAR)  NOT NULL,
+    created_at         TIMESTAMP           NOT NULL,
+    lang               VARCHAR2(10),
+    reply_to_tweet_id  NUMBER(19),
     CONSTRAINT fk_tweet_user
-        FOREIGN KEY (user_id) REFERENCES APP_USER(user_id),
+        FOREIGN KEY (user_id) REFERENCES APP_USER (user_id),
     CONSTRAINT fk_tweet_reply
-        FOREIGN KEY (reply_to_tweet_id) REFERENCES TWEET(tweet_id)
+        FOREIGN KEY (reply_to_tweet_id) REFERENCES TWEET (tweet_id) ON DELETE SET NULL,
+    CONSTRAINT ck_tweet_not_self_reply
+        CHECK (reply_to_tweet_id <> tweet_id)
 );
 
 CREATE TABLE HASHTAG (
-    hashtag_id NUMBER PRIMARY KEY,
-    tag_text VARCHAR2(100) NOT NULL UNIQUE,
-    first_seen_at TIMESTAMP
+    hashtag_id     NUMBER(10)          CONSTRAINT pk_hashtag PRIMARY KEY,
+    tag_text       VARCHAR2(140 CHAR)  NOT NULL CONSTRAINT uq_hashtag_tag_text UNIQUE,
+    first_seen_at  TIMESTAMP,
+    CONSTRAINT ck_hashtag_lowercase
+        CHECK (tag_text = LOWER(tag_text))
 );
 
 CREATE TABLE SENTIMENT_SCORE (
-    tweet_id NUMBER PRIMARY KEY,
-    score NUMBER(4,2) NOT NULL,
-    model_version VARCHAR2(20),
-    computed_at TIMESTAMP NOT NULL,
+    tweet_id       NUMBER(19)         CONSTRAINT pk_sentiment_score PRIMARY KEY,
+    score          NUMBER(4,2)        NOT NULL,
+    model_version  VARCHAR2(20 CHAR)  NOT NULL,
+    computed_at    TIMESTAMP          NOT NULL,
     CONSTRAINT fk_sentiment_tweet
-        FOREIGN KEY (tweet_id) REFERENCES TWEET(tweet_id)
+        FOREIGN KEY (tweet_id) REFERENCES TWEET (tweet_id) ON DELETE CASCADE,
+    CONSTRAINT ck_sentiment_score_range
+        CHECK (score BETWEEN -1 AND 1)
 );
 
 CREATE TABLE TWEET_HASHTAG (
-    tweet_id NUMBER NOT NULL,
-    hashtag_id NUMBER NOT NULL,
-    tagged_at TIMESTAMP NOT NULL,
+    tweet_id    NUMBER(19)  NOT NULL,
+    hashtag_id  NUMBER(10)  NOT NULL,
+    tagged_at   TIMESTAMP   NOT NULL,
     CONSTRAINT pk_tweet_hashtag
         PRIMARY KEY (tweet_id, hashtag_id),
     CONSTRAINT fk_th_tweet
-        FOREIGN KEY (tweet_id) REFERENCES TWEET(tweet_id),
+        FOREIGN KEY (tweet_id) REFERENCES TWEET (tweet_id) ON DELETE CASCADE,
     CONSTRAINT fk_th_hashtag
-        FOREIGN KEY (hashtag_id) REFERENCES HASHTAG(hashtag_id)
+        FOREIGN KEY (hashtag_id) REFERENCES HASHTAG (hashtag_id)
 );
