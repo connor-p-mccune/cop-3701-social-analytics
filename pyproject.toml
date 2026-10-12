@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Import the package from the repo root without installing it.
+pythonpath = ["."]
+# Integration tests rebuild the schema in the configured database, so they
+# only run when selected explicitly: pytest -m integration
+addopts = "-m 'not integration'"
+markers = [
+    "integration: needs a running Oracle database; drops and reloads the schema from data/",
+]
